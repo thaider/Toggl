@@ -1,0 +1,8 @@
+{
+	"toggl-desc": "Extension providing integration for Toggl",
+	"toggl-apikey": "API token",
+	"prefs-toggl": "Toggl",
+	"toggl-apikey-help": "You can find your API token in your profile settings in Toggl.",
+	"toggl-response-error": "Error when trying to query Toggl (HTTP Status: $1)",
+	"toggl-error-workspace-id": "The workspace ID must be set either as parameter <code>workspace_id</code> in the parser function or globally with the <code>wgTogglWorkspaceID</code> configuration setting."
+}

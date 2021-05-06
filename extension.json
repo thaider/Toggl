@@ -1,0 +1,46 @@
+{
+	"name": "Toggl",
+	"version": "0.0.1",
+	"author": [ "Tobias Haider" ],
+	"url": "https://www.mediawiki.org/wiki/Extension:Toggl",
+	"descriptionmsg": "toggl-desc",
+	"license-name": "GPL",
+	"type": "other",
+	"AutoloadClasses": {
+		"MediaWiki\\Extension\\Toggl\\Hooks": "src/Hooks.php"
+	},
+	"config": {
+		"TogglWorkspaceID": false
+	},
+	"ExtensionMessagesFiles": {
+		"TogglMagic": "Toggl.i18n.magic.php"
+	},
+	"Hooks": {
+		"GetPreferences": [
+			"MediaWiki\\Extension\\Toggl\\Hooks::onGetPreferences"
+		],
+		"ParserFirstCallInit": [
+			"MediaWiki\\Extension\\Toggl\\Hooks::onParserFirstCallInit"
+		]
+	},
+	"MessagesDirs": {
+		"Toggl": [
+			"i18n"
+		]
+	},
+	"ResourceModules": {
+		"ext.toggl": {
+			"scripts": [
+				"modules/ext.toggl.js"
+			],
+			"styles": [
+				"modules/ext.toggl.css"
+			]
+		}
+	},
+	"ResourceFileModulePaths": {
+		"localBasePath": "",
+		"remoteExtPath": "Toggle"
+	},
+	"manifest_version": 1
+}
