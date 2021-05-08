@@ -121,7 +121,7 @@ class Hooks {
 	 * Get hours
 	 */
 	static function reportSummaryHours( \Parser $parser ) {
-		$parser->disableCache();
+		$parser->getOutput()->updateCacheExpiry(0);
 		$params = self::extractOptions( array_slice(func_get_args(), 1 ) );
 		$params['user_agent'] = $GLOBALS['wgEmergencyContact'];
 		$params['grouping'] = $params['grouping'] ?? 'users';
@@ -184,7 +184,7 @@ class Hooks {
 	 * Get report
 	 */
 	static function reportSummary( \Parser $parser ) {
-		$parser->disableCache();
+		$parser->getOutput()->updateCacheExpiry(0);
 		$params = self::extractOptions( array_slice(func_get_args(), 1 ) );
 		$params['user_agent'] = $GLOBALS['wgEmergencyContact'];
 
@@ -260,7 +260,7 @@ class Hooks {
 	 *
 	 */
 	static function workspaces( \Parser $parser ) {
-		$parser->disableCache();
+		$parser->getOutput()->updateCacheExpiry(0);
 
 		$params = array();
 		list( $code, $response ) = self::callTogglAPI( 'workspaces' );
@@ -283,7 +283,7 @@ class Hooks {
 	 *
 	 */
 	static function workspaceUsers( \Parser $parser ) {
-		$parser->disableCache();
+		$parser->getOutput()->updateCacheExpiry(0);
 
 		$params = self::extractOptions( array_slice(func_get_args(), 1 ) );
 		if( !isset( $params['workspace_id'] ) ) {
@@ -317,7 +317,7 @@ class Hooks {
 	 *
 	 */
 	static function workspaceClients( \Parser $parser ) {
-		$parser->disableCache();
+		$parser->getOutput()->updateCacheExpiry(0);
 
 		$params = self::extractOptions( array_slice(func_get_args(), 1 ) );
 		if( !isset( $params['workspace_id'] ) ) {
@@ -351,7 +351,7 @@ class Hooks {
 	 *
 	 */
 	static function workspaceProjects( \Parser $parser ) {
-		$parser->disableCache();
+		$parser->getOutput()->updateCacheExpiry(0);
 
 		$params = self::extractOptions( array_slice(func_get_args(), 1 ) );
 		if( !isset( $params['workspace_id'] ) ) {
