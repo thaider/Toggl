@@ -79,7 +79,7 @@ class Hooks {
 	 * @param array $params
 	 */
 	static function callReportAPI( $type, $params = array() ) {
-		$url = 'https://toggl.com/reports/api/v2/' . $type;
+		$url = 'https://api.track.toggl.com/reports/api/v2/' . $type;
 		return self::callAPI( $url, $params );
 	}
 
