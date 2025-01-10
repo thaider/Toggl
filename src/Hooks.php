@@ -46,8 +46,6 @@ class Hooks {
 	 */
 	static function callAPI( $url, $params = array() ) {
 		$curl = curl_init();
-		//$url .= '?' . http_build_query( $params );
-		//die(var_dump($url));
 
 		$userpwd = $GLOBALS['wgUser']->getOption('toggl-apikey') . ':api_token';
 
@@ -148,8 +146,8 @@ class Hooks {
 			'subgrouping',
 			'grouping_ids',
 			'subgrouping_ids',
-			'startDate',
-			'endDate'
+			'start_date',
+			'end_date'
 		])) );
 
 		if( $code != '200' ) {
