@@ -46,11 +46,15 @@ class Hooks {
 	 */
 	static function callAPI( $url, $params = array() ) {
 		$curl = curl_init();
-		$url .= '?' . http_build_query( $params );
+		//$url .= '?' . http_build_query( $params );
+		//die(var_dump($url));
 
 		$userpwd = $GLOBALS['wgUser']->getOption('toggl-apikey') . ':api_token';
 
 		curl_setopt( $curl, CURLOPT_URL, $url );
+		curl_setopt( $curl, CURLOPT_POST, true );
+		curl_setopt( $curl, CURLOPT_POSTFIELDS, json_encode( $params ) );
+		curl_setopt( $curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json'));
 		curl_setopt( $curl, CURLOPT_USERPWD, $userpwd );
 		curl_setopt( $curl, CURLOPT_RETURNTRANSFER, true );
 		$response = json_decode( curl_exec( $curl ) );
@@ -79,7 +83,7 @@ class Hooks {
 	 * @param array $params
 	 */
 	static function callReportAPI( $type, $params = array() ) {
-		$url = 'https://api.track.toggl.com/reports/api/v2/' . $type;
+		$url = 'https://api.track.toggl.com/reports/api/v3/' . $type;
 		return self::callAPI( $url, $params );
 	}
 
@@ -110,7 +114,7 @@ class Hooks {
 			return array( '200', self::$report_summary[$hash] );
 		}
 		
-		list( $code, $response ) = self::callReportAPI( 'summary', $params );
+		list( $code, $response ) = self::callReportAPI( 'workspace/' . $params['workspace_id'] . '/projects/summary', $params );
 		if( $code == '200' ) {
 			self::$report_summary[$hash] = $response;
 		}
@@ -144,8 +148,8 @@ class Hooks {
 			'subgrouping',
 			'grouping_ids',
 			'subgrouping_ids',
-			'since',
-			'until'
+			'startDate',
+			'endDate'
 		])) );
 
 		if( $code != '200' ) {
