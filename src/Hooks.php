@@ -38,20 +38,22 @@ class Hooks {
 	 *
 	 * @param string $url
 	 * @param array $params
+	 * @param string $method
 	 *
 	 * @return array code, response
-	 *
-	 * TODO: check for availability of cURL
-	 * TODO: check for availability of API token
 	 */
-	static function callAPI( $url, $params = array() ) {
-		$curl = curl_init();
-
+	static function callAPI( $url, $params = array(), $method='GET' ) {
 		$userpwd = $GLOBALS['wgUser']->getOption('toggl-apikey') . ':api_token';
 
+		$curl = curl_init();
+		if( $method == 'GET' ) {
+			$url  .= '?' . http_build_query( $params );
+		} else {
+			curl_setopt( $curl, CURLOPT_POST, true );
+			curl_setopt( $curl, CURLOPT_POSTFIELDS, json_encode( $params ) );
+		}
+
 		curl_setopt( $curl, CURLOPT_URL, $url );
-		curl_setopt( $curl, CURLOPT_POST, true );
-		curl_setopt( $curl, CURLOPT_POSTFIELDS, json_encode( $params ) );
 		curl_setopt( $curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json'));
 		curl_setopt( $curl, CURLOPT_USERPWD, $userpwd );
 		curl_setopt( $curl, CURLOPT_RETURNTRANSFER, true );
@@ -79,10 +81,11 @@ class Hooks {
 	 *
 	 * @param string $type Report type (weekly/details/summary)
 	 * @param array $params
+	 * @param string $method
 	 */
-	static function callReportAPI( $type, $params = array() ) {
+	static function callReportAPI( $type, $params = array(), $method='GET' ) {
 		$url = 'https://api.track.toggl.com/reports/api/v3/' . $type;
-		return self::callAPI( $url, $params );
+		return self::callAPI( $url, $params, $method );
 	}
 
 
@@ -97,7 +100,7 @@ class Hooks {
 			->params( $params )
 			->inContentLanguage()
 			->parse();
-		$error = '<div class="op-error alert alert-danger">' . $error . '</div>';
+		$error = '<div class="toggl-error alert alert-danger">' . $error . '</div>';
 		return $error;
 	}
 
@@ -112,12 +115,13 @@ class Hooks {
 			return array( '200', self::$report_summary[$hash] );
 		}
 		
-		list( $code, $response ) = self::callReportAPI( 'workspace/' . $params['workspace_id'] . '/projects/summary', $params );
+		list( $code, $response ) = self::callReportAPI( 'workspace/' . $params['workspace_id'] . '/summary/time_entries', $params, 'POST' );
 		if( $code == '200' ) {
 			self::$report_summary[$hash] = $response;
 		}
 		return array( $code, $response );	
 	}
+
 
 	/**
 	 * Get hours
@@ -126,10 +130,25 @@ class Hooks {
 		$parser->getOutput()->updateCacheExpiry(0);
 		$params = self::extractOptions( array_slice(func_get_args(), 1 ) );
 		$params['user_agent'] = $GLOBALS['wgEmergencyContact'];
-		$params['grouping'] = $params['grouping'] ?? 'users';
-		$params['subgrouping'] = $params['subgrouping'] ?? 'clients';
-		$params['grouping_ids'] = true;
-		$params['subgrouping_ids'] = true;
+
+		// backwards compatibility
+		$aliases = [
+			'start_date' => 'since',
+			'end_date' => 'until',
+			'sub_grouping' => 'subgrouping'
+		];
+		foreach( $aliases as $new => $old ) {
+			if( !isset( $params[$new] ) && isset( $params[$old] ) ) {
+				$params[$new] = $params[$old];
+			}
+		}
+
+		if( !isset( $params['grouping'] ) && ( !isset( $params['sub_grouping'] ) || $params['sub_grouping'] != 'users' ) ) {
+			$params['grouping'] = 'users';
+		}
+		if( !isset( $params['sub_grouping'] ) && ( !isset( $params['grouping'] ) || $params['grouping'] != 'clients' ) ) {
+			$params['sub_grouping'] = 'clients';
+		}
 
 		if( !isset( $params['workspace_id'] ) ) {
 			if( isset( $GLOBALS['wgTogglWorkspaceID'] ) && $GLOBALS['wgTogglWorkspaceID'] ) {
@@ -143,44 +162,38 @@ class Hooks {
 			'user_agent',
 			'workspace_id',
 			'grouping',
-			'subgrouping',
-			'grouping_ids',
-			'subgrouping_ids',
+			'sub_grouping',
 			'start_date',
 			'end_date'
 		])) );
 
 		if( $code != '200' ) {
-			return self::errorMsg( 'toggl-response-error', $code );
+			return self::errorMsg( 'toggl-response-error', [ $code, $response ] );
 		}
 
 		$filter['group'] = $params[substr( $params['grouping'], 0, -1 ) . '_id'] ?? false;
-		$filter['subgroup'] = $params[ substr( $params['subgrouping'], 0, -1 ) . '_id'] ?? false;
+		$filter['subgroup'] = $params[ substr( $params['sub_grouping'], 0, -1 ) . '_id'] ?? false;
 
-		// return total if no value for the group or subgroup has been set
-		if( !$filter['group'] && !$filter['subgroup'] ) {
-			return round( $response->total_grand / ( 3600 * 1000 ), 2 );
-		} else {
-			foreach( $response->data as $group ) {
-
-				// group filter has been set
-				if( $group->id == $filter['group'] ) {
-					if( $filter['subgroup'] == false ) { 
-						return round( $group->time / ( 3600 * 1000 ), 2 );
-
-					// subgroup filter has been set
-					} else {
-						foreach( $group->items as $subgroup ) {
-							if( $subgroup->ids == $filter['subgroup'] ) {
-								return round( $subgroup->time / ( 3600 * 1000 ), 2 );
-							}
-						}
-					}
+		// count total working hours
+		$seconds = 0;
+		if( !$response->groups ) {
+			return 0;
+		}
+		foreach( $response->groups as $group ) {
+			if( $filter['group'] && $filter['group'] != $group->id ) {
+				continue;
+			}
+			foreach( $group->sub_groups as $subgroup ) {
+				if( $filter['subgroup'] && $filter['subgroup'] != $subgroup->id ) {
+					continue;
 				}
+				$seconds += $subgroup->seconds;
 			}
 		}
-		return 0;
+
+		return round( $seconds / (3600), 2 );
 	}
+
 
 	/**
 	 * Get report
@@ -268,7 +281,7 @@ class Hooks {
 		list( $code, $response ) = self::callTogglAPI( 'workspaces' );
 
 		if( $code != '200' ) {
-			return '<div class="op-error">' . wfMessage( 'toggl-response-error' )->params( $code )->inContentLanguage()->parse() . '</div>';
+			return self::errorMsg( 'toggl-response-error', $code );
 		}
 
 		$output = '<ul>';
@@ -279,6 +292,7 @@ class Hooks {
 		
 		return array( $output, 'noparse' => true, 'isHTML' => true );
 	}
+
 
 	/*
 	 * Get users
@@ -302,7 +316,7 @@ class Hooks {
 		list( $code, $response ) = self::callTogglAPI( 'workspaces/' . $workspace_id . '/users', $params );
 
 		if( $code != '200' ) {
-			return '<div class="op-error">' . wfMessage( 'toggl-response-error' )->params( $code )->inContentLanguage()->parse() . '</div>';
+			return self::errorMsg( 'toggl-response-error', $code );
 		}
 
 		$output = '<ul>';
@@ -313,6 +327,7 @@ class Hooks {
 		
 		return array( $output, 'noparse' => true, 'isHTML' => true );
 	}
+
 
 	/*
 	 * Get clients
@@ -336,7 +351,7 @@ class Hooks {
 		list( $code, $response ) = self::callTogglAPI( 'workspaces/' . $workspace_id . '/clients', $params );
 
 		if( $code != '200' ) {
-			return '<div class="op-error">' . wfMessage( 'toggl-response-error' )->params( $code )->inContentLanguage()->parse() . '</div>';
+			return self::errorMsg( 'toggl-response-error', $code );
 		}
 
 		$output = '<ul>';
@@ -347,6 +362,7 @@ class Hooks {
 		
 		return array( $output, 'noparse' => true, 'isHTML' => true );
 	}
+
 
 	/*
 	 * Get projects
@@ -370,7 +386,7 @@ class Hooks {
 		list( $code, $response ) = self::callTogglAPI( 'workspaces/' . $workspace_id . '/projects', $params );
 
 		if( $code != '200' ) {
-			return '<div class="op-error">' . wfMessage( 'toggl-response-error' )->params( $code )->inContentLanguage()->parse() . '</div>';
+			return self::errorMessage( 'toggl-response-error', $code );
 		}
 
 		$output = '<ul>';
@@ -381,6 +397,7 @@ class Hooks {
 		
 		return array( $output, 'noparse' => true, 'isHTML' => true );
 	}
+
 
 	/**
 	 * Converts an array of values in form [0] => "name=value" into a real
