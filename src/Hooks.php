@@ -10,6 +10,7 @@ namespace MediaWiki\Extension\Toggl;
  */
 class Hooks {
 	protected static $report_summary = [];
+	protected static $clients = [];
 
 	static function onGetPreferences( $user, &$preferences ) {
 		$preferences['toggl-apikey'] = array(
@@ -203,6 +204,18 @@ class Hooks {
 		$params = self::extractOptions( array_slice(func_get_args(), 1 ) );
 		$params['user_agent'] = $GLOBALS['wgEmergencyContact'];
 
+		// backwards compatibility
+		$aliases = [
+			'start_date' => 'since',
+			'end_date' => 'until',
+			'sub_grouping' => 'subgrouping'
+		];
+		foreach( $aliases as $new => $old ) {
+			if( !isset( $params[$new] ) && isset( $params[$old] ) ) {
+				$params[$new] = $params[$old];
+			}
+		}
+
 		if( !isset( $params['workspace_id'] ) ) {
 			if( isset( $GLOBALS['wgTogglWorkspaceID'] ) && $GLOBALS['wgTogglWorkspaceID'] ) {
 				$params['workspace_id'] = $GLOBALS['wgTogglWorkspaceID'];
@@ -211,22 +224,37 @@ class Hooks {
 			}
 		}
 
-		list( $code, $response ) = self::getReportSummary( $params );
+		if( isset( $params['user_ids'] ) ) {
+			$params['user_ids'] = explode( ',', $params['user_ids'] );
+			foreach( $params['user_ids'] as $key => $id ) {
+				$params['user_ids'][$key] = (int) $id;
+			}
+		}
+
+		list( $code, $response ) = self::getReportSummary( array_intersect_key($params, array_flip([
+			'user_agent',
+			'workspace_id',
+			'grouping',
+			'sub_grouping',
+			'start_date',
+			'end_date',
+			'user_ids',
+		])) );
 
 		if( $code != '200' ) {
-			return self::errorMsg( 'toggl-response-error', $code );
+			return self::errorMsg( 'toggl-response-error', [ $code, $response ] );
 		}
 
 		$output = '<ul>';
-		usort( $response->data, function ($a, $b) { return -( $a->time <=> $b->time ); });
-		foreach( $response->data as $group ) {
+		//usort( $response->data, function ($a, $b) { return -( $a->time <=> $b->time ); });
+		foreach( $response->groups as $group ) {
 			$output .= '<li>';
 			switch( isset( $params['grouping'] ) ? $params['grouping'] : 'projects' ) {
 				case 'clients':
-					$output .= $group->title->client;
+					$output .= self::getClients( $params['workspace_id'] )[$group->id]->name;
 					break;
 				case 'users':
-					$output .= $group->title->user;
+					$output .= $group->id;
 					break;
 				case 'projects':
 				default:
@@ -235,29 +263,9 @@ class Hooks {
 			}
 			$output .= ' <small>(' . round( $group->time / (3600*1000) ) . 'h)</small>: ';
 			//$output .= '<ul>';
-				usort( $group->items, function( $a, $b ) { return -( $a->time <=> $b->time ); });
-				foreach( $group->items as $item ) {
-					// $output .= '<li>';
-					// $output .= round( $item->time / (3600*1000), 2 ) . ' h' . ' - ';
-					switch( isset( $params['subgrouping'] ) ? $params['subgrouping'] : 'time_entries' ) {
-						case 'projects':
-							$output .= $item->title->project . ' - ' . $item->title->client;
-							break;
-						case 'clients':
-							$output .= $item->title->client;
-							break;
-						case 'users':
-							$output .= $item->title->user;
-							break;
-						case 'tasks':
-							$output .= $item->title->task;
-							break;
-						case 'time_entries':
-						default:
-							$output .= $item->title->time_entry;
-							break;
-					}
-					// $output .= '</li>';
+				//usort( $group->items, function( $a, $b ) { return -( $a->time <=> $b->time ); });
+				foreach( $group->sub_groups as $item ) {
+					$output .= $item->title;
 					$output = trim( $output, ', ' ) . ', ';
 				}
 			//$output .= '</ul>';
@@ -348,19 +356,44 @@ class Hooks {
 			unset( $params['workspace_id'] );
 		}
 
-		list( $code, $response ) = self::callTogglAPI( 'workspaces/' . $workspace_id . '/clients', $params );
-
-		if( $code != '200' ) {
-			return self::errorMsg( 'toggl-response-error', $code );
-		}
+		$clients = self::getClients( $workspace_id, $params );
 
 		$output = '<ul>';
-		foreach( $response as $client ) {
+		foreach( $clients as $client ) {
 			$output .= '<li>' . $client->id . ': ' . $client->name . '</li>';
 		}
 		$output .= '</ul>';
 		
 		return array( $output, 'noparse' => true, 'isHTML' => true );
+	}
+
+
+	/**
+	 * Get clients from API
+	 *
+	 * @param Integer $workspace_id
+	 * @param Array $params
+	 *
+	 * @return Array Clients
+	 */
+	static function getClients( $workspace_id, $params = [] ) {
+		$hash = md5( $workspace_id . json_encode( $params ) );
+		// already in the cash?
+		if( isset( self::$clients[$hash] ) ) {
+			return self::$clients[$hash];
+		}
+		list( $code, $response ) = self::callTogglAPI( 'workspaces/' . $workspace_id . '/clients', $params );
+
+		if( $code != '200' ) {
+			return [];
+		} else {
+			$clients = [];
+			foreach( $response as $client ) {
+				$clients[$client->id] = $client;
+			}
+			self::$clients[$hash] = $clients;
+			return $clients;
+		}
 	}
 
 
