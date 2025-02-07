@@ -48,7 +48,12 @@ Returns the total of hours if no filter for the group or subgroup has been set.
 Example:
 
 ```
-{{#toggl-report-summary:grouping=clients|client_id=1|start_date=2020-01-01|end_date=2020-12-31}}
+{{#toggl-report-summary:
+  |grouping=clients
+  |client_id=1
+  |start_date=2020-01-01
+  |end_date=2020-12-31
+}}
 ```
 
 Returns all hours worked for the client with ID “1” for the year 2020.
