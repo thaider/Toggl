@@ -126,6 +126,8 @@ class Hooks {
 
 	/**
 	 * Get hours
+	 *
+	 * @return Float Total hours
 	 */
 	static function reportSummaryHours( \Parser $parser ) {
 		$parser->getOutput()->updateCacheExpiry(0);
@@ -198,6 +200,8 @@ class Hooks {
 
 	/**
 	 * Get report
+	 *
+	 * @return String Summary as unordered list
 	 */
 	static function reportSummary( \Parser $parser ) {
 		$parser->getOutput()->updateCacheExpiry(0);
@@ -261,7 +265,11 @@ class Hooks {
 					$output .= $group->title->project . ' - ' . $group->title->client;
 					break;
 			}
-			$output .= ' <small>(' . round( $group->time / (3600*1000) ) . 'h)</small>: ';
+			$seconds = 0;
+			foreach( $group->sub_groups as $item ) {
+				$seconds += $item->seconds;
+			}
+			$output .= ' <small>(' . round( $seconds / (3600) ) . 'h)</small>: ';
 			//$output .= '<ul>';
 				//usort( $group->items, function( $a, $b ) { return -( $a->time <=> $b->time ); });
 				foreach( $group->sub_groups as $item ) {
