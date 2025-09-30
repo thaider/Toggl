@@ -73,7 +73,14 @@ class Hooks {
 	 */
 	static function callTogglAPI( $type, $params = array() ) {
 		$url = 'https://api.track.toggl.com/api/v9/' . $type;
-		return self::callAPI( $url, $params );
+		$cache_key = $type . '-' . implode('-',$params);
+		if( apcu_exists( $cache_key ) ) {
+			$data = apcu_fetch( $cache_key );
+		} else {
+			$data = self::callAPI( $url, $params );
+			apcu_store( $cache_key, $report_data, 60*5);
+		}
+		return $data;
 	}
 
 
@@ -86,7 +93,14 @@ class Hooks {
 	 */
 	static function callReportAPI( $type, $params = array(), $method='GET' ) {
 		$url = 'https://api.track.toggl.com/reports/api/v3/' . $type;
-		return self::callAPI( $url, $params, $method );
+		$cache_key = implode('-',$params);
+		if( apcu_exists( $cache_key ) ) {
+			$report_data = apcu_fetch( $cache_key );
+		} else {
+			$report_data = self::callAPI( $url, $params, $method );
+			apcu_store( $cache_key, $report_data, 60*5);
+		}
+		return $report_data;
 	}
 
 
@@ -132,7 +146,7 @@ class Hooks {
 	static function reportSummaryHours( \Parser $parser ) {
 		$parser->getOutput()->updateCacheExpiry(0);
 		$params = self::extractOptions( array_slice(func_get_args(), 1 ) );
-		$params['user_agent'] = $GLOBALS['wgEmergencyContact'];
+		//$params['user_agent'] = $GLOBALS['wgEmergencyContact'];
 
 		// backwards compatibility
 		$aliases = [
@@ -206,7 +220,7 @@ class Hooks {
 	static function reportSummary( \Parser $parser ) {
 		$parser->getOutput()->updateCacheExpiry(0);
 		$params = self::extractOptions( array_slice(func_get_args(), 1 ) );
-		$params['user_agent'] = $GLOBALS['wgEmergencyContact'];
+		//$params['user_agent'] = $GLOBALS['wgEmergencyContact'];
 
 		// backwards compatibility
 		$aliases = [
