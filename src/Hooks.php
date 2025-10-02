@@ -78,7 +78,7 @@ class Hooks {
 			$data = apcu_fetch( $cache_key );
 		} else {
 			$data = self::callAPI( $url, $params );
-			apcu_store( $cache_key, $report_data, 60*5);
+			apcu_store( $cache_key, $data, 60*5);
 		}
 		return $data;
 	}
